@@ -494,7 +494,7 @@ const unsigned char auchCRCLo[] =
 
 
 uint16_t reg_MB2[2][19];
-uint8_t reg_MB[30];
+uint16_t reg_MB[30];
 
 const uint32_t USART_const [9] = {2400,4800,9600,14400,19200,38400,56000,57600,115200};
 const uint8_t  TIMER_const [9] = {15,8,4,3,2,2,2,2,2};
@@ -1304,19 +1304,22 @@ void KormPlacement(void)
 		Korm[0].R_Hours=StartHr;
 		Korm[0].R_Minutes=StartMin;
 		Korm[0].R_Seconds=0;
-		Korm[CntFood-1].R_Hours=StopHr;
-		Korm[CntFood-1].R_Minutes=StopMin;
-		Korm[CntFood-1].R_Seconds=0;
-		if(Korm[0].R_Hours*60+Korm[0].R_Minutes<Korm[CntFood-1].R_Hours*60+Korm[CntFood-1].R_Minutes)
+		if(CntFood>1)
 		{
-			PauseT=((Korm[CntFood-1].R_Hours*3600+Korm[CntFood-1].R_Minutes*60)-(Korm[0].R_Hours*3600+Korm[0].R_Minutes*60))/(CntFood-1);
-		}
-		for(ik=1;ik<CntFood-1;ik++)
-		{
-			PT1=Korm[ik-1].R_Hours*3600+Korm[ik-1].R_Minutes*60+Korm[ik-1].R_Seconds+PauseT;
-			Korm[ik].R_Hours=PT1/3600;
-			Korm[ik].R_Minutes=PT1%3600/60;
-			Korm[ik].R_Seconds=PT1%60;
+			Korm[CntFood-1].R_Hours=StopHr;
+			Korm[CntFood-1].R_Minutes=StopMin;
+			Korm[CntFood-1].R_Seconds=0;
+			if(Korm[0].R_Hours*60+Korm[0].R_Minutes<Korm[CntFood-1].R_Hours*60+Korm[CntFood-1].R_Minutes)
+			{
+				PauseT=((Korm[CntFood-1].R_Hours*3600+Korm[CntFood-1].R_Minutes*60)-(Korm[0].R_Hours*3600+Korm[0].R_Minutes*60))/(CntFood-1);
+			}
+			for(ik=1;ik<CntFood-1;ik++)
+			{
+				PT1=Korm[ik-1].R_Hours*3600+Korm[ik-1].R_Minutes*60+Korm[ik-1].R_Seconds+PauseT;
+				Korm[ik].R_Hours=PT1/3600;
+				Korm[ik].R_Minutes=PT1%3600/60;
+				Korm[ik].R_Seconds=PT1%60;
+			}
 		}
 	}
 	else {power=0;
@@ -1445,7 +1448,7 @@ uint16_t errorsGet(void)
 	{
 		result|=0x02;
 	}
-	if(((uint16_t)CntHr*3600+(uint16_t)CntMin*60+CntSec)>=(StopHr*3600+StopMin*60+MOTOR_TIME)-(StartHr*3600+StartMin*60))
+	if(((uint16_t)CntHr*3600+(uint16_t)CntMin*60+(uint16_t)CntSec)>=((uint16_t)StopHr*3600+(uint16_t)StopMin*60+(uint16_t)MOTOR_TIME)-((uint16_t)StartHr*3600+(uint16_t)StartMin*60))
 	{
 		result|=0x10;
 	}
@@ -1545,15 +1548,15 @@ int main(void)
 		FlashRoyal();
 	}
 
-	StartHr=FLASH_BUF/0x1000000;
-	StartMin=FLASH_BUF/0x10000%0x100;
-	StopHr=FLASH_BUF%0x10000/0x100;
-	StopMin=FLASH_BUF%0x1000000;
+	StartHr=(uint8_t)(FLASH_BUF/0x1000000);
+	StartMin=(uint8_t)(FLASH_BUF/0x10000%0x100);
+	StopHr=(uint8_t)(FLASH_BUF%0x10000/0x100);
+	StopMin=(uint8_t)(FLASH_BUF%0x1000000);
 	
 	FLASH_BUF = FLASH_Read(ST_ADR+4);
-	CntMin=FLASH_BUF/0x1000000;
-	CntSec=FLASH_BUF/0x10000%0x100;
-	CntFood=FLASH_BUF%0x10000/0x100;
+	CntMin=(uint8_t)(FLASH_BUF/0x1000000);
+	CntSec=(uint8_t)(FLASH_BUF/0x10000%0x100);
+	CntFood=(uint8_t)(FLASH_BUF%0x10000/0x100);
 	//Per=FLASH_BUF%0x1000000;
 	
 	CntHr = FLASH_Read(ST_ADR+12);
@@ -1561,10 +1564,10 @@ int main(void)
 	Per=0;
 	FLASH_BUF = FLASH_Read(ST_ADR+16);
 	
-	MBSpeed=FLASH_BUF%0x10;
+	MBSpeed=(uint8_t)(FLASH_BUF%0x10);
 	MX_TIM22_Init(MBSpeed);
 	USART2_ReInit(MBSpeed);
-	MBAdr=FLASH_BUF%0x10000/0x100;
+	MBAdr=(uint8_t)(FLASH_BUF%0x10000/0x100);
 
 	KormPlacement();
 	HAL_IWDG_Refresh(&hiwdg);
@@ -1800,7 +1803,7 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
     		}
     		else
     		{
-					if(POWER_KORM)//?????????? ???? ?????? ?? ???
+					/*if(POWER_KORM)//?????????? ???? ?????? ?? ???
 					{
 						POWER_KORM=0;
 						Korm_Now=RTC_DateTime.Hours*3600+RTC_DateTime.Minutes*60+RTC_DateTime.Seconds;
@@ -1835,7 +1838,7 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
 							
 						}
 					}
-					else
+					else*/
 					
 						if ((RTC_DateTime.Hours==Korm[NXT_TIME].R_Hours)&&(RTC_DateTime.Minutes==Korm[NXT_TIME].R_Minutes)&&(RTC_DateTime.Seconds==Korm[NXT_TIME].R_Seconds))
 						{
@@ -1846,6 +1849,7 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
 							clearscreen(0);
 							MOTOR_TIME1=MOTOR_TIME+1;
 							NOTSLEEP=1;
+							reg_MB[19]=NXT_TIME+1; //удалить
 						}
 				}
     	}
@@ -3240,7 +3244,7 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
 			{
 				case 0x03:							// Чтение регистров
 				{
-					if ((res_buffer[2]<1) && ((res_buffer[3]+res_buffer[4]*256+res_buffer[5]-1)<19))
+					if ((res_buffer[2]<1) && ((res_buffer[3]+res_buffer[4]*256+res_buffer[5]-1)<20))  //вернуть 19
 					{
 
 
@@ -3251,7 +3255,7 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
 						for (i=0; i<res_buffer[5]; i++)				// Значения регистров
 						{
 							write_buffer[4+(2*i)]=(reg_MB[res_buffer[2]*0x100+res_buffer[3]+i])%256;		// Младший байт (2-ой)
-							write_buffer[3+(2*i)]=0;//(reg_MB[res_buffer[2]*0x100+res_buffer[3]+i])/256;	// Старший байт (1-ый)
+							write_buffer[3+(2*i)]=(reg_MB[res_buffer[2]*0x100+res_buffer[3]+i])/256;	// Старший байт (1-ый)
 						}
 
 						snd_cnt=write_buffer[2]+3;			
@@ -3828,17 +3832,30 @@ scr_cnt (res_wr_index, 0, 0, 0);
 void USART2_IRQHandler(void)
 {
 	if((USART2->ISR & USART_ISR_RXNE) == USART_ISR_RXNE)
-	{	
-		
-			TIM22->CR1 &= (uint16_t)(~((uint16_t)TIM_CR1_CEN));
-			TIM22->CNT=0;
+	{			
+		TIM22->CR1 &= (uint16_t)(~((uint16_t)TIM_CR1_CEN));
+		TIM22->CNT=0;
+		uint8_t buf = 0;
+		buf =(uint8_t)(USART2->RDR);
+		if(res_wr_index==0)
+		{
+			if (buf==MBAdr)
+			{
+				res_buffer[res_wr_index]=buf;
+				res_wr_index++;	
+			}
+		}
+		else
+		{
 			res_buffer[res_wr_index]=(uint8_t)(USART2->RDR);
 			//HAL_UART_Receive(&huart2, &x, 1, 100);
 			if(res_wr_index<19)
 			{
 				res_wr_index++;						
 			}	
-			TIM22->CR1 |= TIM_CR1_CEN; 
+		}
+		TIM22->CR1 |= TIM_CR1_CEN; 
+	
 	}
 	HAL_UART_IRQHandler(&huart2);
 }
