@@ -1511,7 +1511,8 @@ int main(void)
 	res_in();
 	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_14 | GPIO_PIN_13,GPIO_PIN_RESET);
 		HAL_IWDG_Refresh(&hiwdg);
-	SPI_syn_out(0x00);
+	rele&=0xDF;
+  SPI_syn_out(rele);
 	HAL_Delay(500);
 	res_in();
 
@@ -1603,9 +1604,11 @@ int main(void)
 	//SPI_syn_out(0xFF);
 	//HAL_Delay(1000);
 	//SPI_syn_out(0x80);
-	
+	rele&=0xDF;
+  SPI_syn_out(rele);
 	HAL_Delay(500);
-	
+	rele&=0xDF;
+  SPI_syn_out(rele);
 	int i;
 
 	
@@ -1629,6 +1632,8 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
 	DEEPSLP=0;
 	HAL_UART_Transmit(&huart2,write_buffer,5,100);
 	HAL_UART_Receive_IT(&huart2, write_buffer, 15);
+	
+	screen_init();
   while (1)
   {
 		HAL_IWDG_Refresh(&hiwdg);
@@ -3857,6 +3862,7 @@ void USART2_IRQHandler(void)
 		TIM22->CR1 |= TIM_CR1_CEN; 
 	
 	}
+	//else if (LL_USART_IsActiveFlag_RTO(USART2))
 	HAL_UART_IRQHandler(&huart2);
 }
 
