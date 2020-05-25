@@ -76,8 +76,8 @@ const uint8_t state_tabl[43][2] ={
 		{0x03,0x28}, //0x07
 		{0x0A,0x18}, //0x08
 		{0x01,0x01}, //0x09
-		{0x01,0x1A}, //0x0A
-		{0x07,0x07}, //0x0B
+		{0x0B,0x1A}, //0x0A
+		{0x01,0x1B}, //0x0B
 		{0x07,0x07}, //0x0C
 		{0x07,0x07}, //0x0D
 		{0x07,0x07}, //0x0E
@@ -93,7 +93,7 @@ const uint8_t state_tabl[43][2] ={
 		{0x18,0x18}, //0x18
 		{0x07,0x07}, //0x19
 		{0x2A,0x0A}, //0x1A
-		{0x07,0x07}, //0x1B
+		{0x1B,0x0B}, //0x1B
 		{0x07,0x07}, //0x1C
 		{0x07,0x07}, //0x1D
 		{0x07,0x07}, //0x1E
@@ -622,8 +622,11 @@ RTC_DateTypeDef RTC_Date1;
 
 #define CntHr reg_MB[18]
 
+
+
 const uint8_t MaxS[19]={0,0,0,0,0,0,24,60,24,60,24,60,60,60,100,100,247,9,10};
 
+uint8_t EngLang = 0;
 
 //uint8_t GlobalHr, GlobalMin = 0;
 //uint8_t StartMin, StartHr = 0;
@@ -1176,13 +1179,14 @@ uint8_t MinusOne(uint8_t pl,uint8_t high)
 
 void FlashRoyal(void)
 {
-	uint32_t Buf[7];
+	uint32_t Buf[8];
 	uint32_t PgError = 0;
 	Buf[0]=(uint32_t)((uint8_t)StartHr*0x1000000+(uint8_t)StartMin*0x10000+(uint8_t)StopHr*0x100+(uint8_t)StopMin);
 	Buf[1]=(uint32_t)((uint8_t)CntMin*0x1000000+(uint8_t)CntSec*0x10000+(uint8_t)CntFood*0x100);//+(uint8_t)Per)
 	Buf[2]=(uint32_t)(power);
 	Buf[3]=(uint32_t)(CntHr);
 	Buf[4]=(uint32_t)((uint8_t)MBAdr*0x100+(uint8_t)MBSpeed);
+	Buf[5]=(uint32_t)(EngLang);
 	HAL_FLASH_Unlock();
 	
 	FLASH_EraseInitTypeDef Flash_eraseInitStruct;
@@ -1200,6 +1204,7 @@ void FlashRoyal(void)
 	HAL_FLASH_Program(TYPEPROGRAM_WORD, ST_ADR+8,Buf[2]);
 	HAL_FLASH_Program(TYPEPROGRAM_WORD, ST_ADR+12,Buf[3]);
 	HAL_FLASH_Program(TYPEPROGRAM_WORD, ST_ADR+16,Buf[4]);
+	HAL_FLASH_Program(TYPEPROGRAM_WORD, ST_ADR+20,Buf[5]);
 	HAL_FLASH_Lock();
 }
 
@@ -1252,7 +1257,8 @@ void WakeRestart2 (void)
 	}
 	if (state==0x00)
 	{
-		twolines(" Œ–Ã","");
+		if (EngLang) {twolines("FEED","");}
+		else {twolines(" Œ–Ã","");}
 		scr_time(GlobalHr,GlobalMin,0,30,0);
 		prev_min=RTC_DateTime.Minutes;
 
@@ -1282,7 +1288,8 @@ void WakeRestart (void)
 		}
 		if (state==0x00)
 		{
-			twolines(" Œ–Ã","");
+			if (EngLang) {twolines("FEED","");}
+			else {twolines(" Œ–Ã","");}
 			scr_time(GlobalHr,GlobalMin,0,30,0);
 			prev_min=RTC_DateTime.Minutes;
 
@@ -1546,6 +1553,7 @@ int main(void)
 		Per=0;
 		MBSpeed=8;
 		MBAdr=1;
+		EngLang=0;
 		FlashRoyal();
 	}
 
@@ -1564,6 +1572,8 @@ int main(void)
 	if(CntHr>9) {CntHr=0;}
 	Per=0;
 	FLASH_BUF = FLASH_Read(ST_ADR+16);
+	
+	EngLang = (uint8_t)FLASH_Read(ST_ADR+20);
 	
 	MBSpeed=(uint8_t)(FLASH_BUF%0x10);
 	MX_TIM22_Init(MBSpeed);
@@ -2033,6 +2043,11 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
     			    	MBSpeed=PlusOne(MBSpeed,9);
     			    	break;
     			    }
+						case 0x1B:
+    			    {
+    			    	EngLang=PlusOne(EngLang,2);
+    			    	break;
+    			    }
     		    }
     			delay(SPEEDPLUS);
 			}
@@ -2128,6 +2143,11 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
     				case 0x2A:
     			    {
     			    	MBSpeed=MinusOne(MBSpeed,9);
+    			    	break;
+    			    }
+						case 0x1B:
+    			    {
+    			    	EngLang=MinusOne(EngLang,2);
     			    	break;
     			    }
     		    }
@@ -2248,6 +2268,12 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
     			    	else {MBSpeed=MinusOne(MBSpeed,9);}
     			    	break;
     			    }
+						case 0x1B:
+    			    {
+								if (but_plus){EngLang=PlusOne(EngLang,2);}
+    			    	else {EngLang=MinusOne(EngLang,2);}
+    			    	break;
+    			    }
     		    }
     		}
     		VAR_CH=1;
@@ -2284,6 +2310,11 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
 					RTC_DateTime.Seconds = 00;
 					HAL_RTC_SetTime(&hrtc, &RTC_DateTime, RTC_FORMAT_BIN);
 					power=0;
+					
+					HAL_RTC_GetDate(&hrtc, &RTC_Date1, RTC_FORMAT_BIN);
+					HAL_RTC_GetTime(&hrtc, &RTC_DateTime, RTC_FORMAT_BIN);
+					GlobalHr=RTC_DateTime.Hours;
+					GlobalMin=RTC_DateTime.Minutes;
 					FlashRoyal();
 				}
 				if ((power_ch)&&(ts_change))
@@ -2318,7 +2349,8 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
     		  	  	    {
 											if (sc_up)
 											{
-												twolines(" Œ–Ã","");
+												if (EngLang) {twolines("FEED","");}
+												else {twolines(" Œ–Ã","");}
 												sc_up=0;
 												rele|=0x20;
 												SPI_syn_out(rele);
@@ -2339,7 +2371,8 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
 													{
 														reScreen=2;
 														screen_init();
-														twolines(" Œ–Ã","");
+														if (EngLang) {twolines("FEED","");}
+														else {twolines(" Œ–Ã","");}
 														sc_up=0;
 														rele|=0x20;
 														delay(1);
@@ -2421,16 +2454,21 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
 													MBpower_not=0;
 													if (power) 
 													{
-														twolines("œ–Œ√–¿ÃÃ¿","¬ À");
+														if (EngLang) {twolines("PROGRAM","ON");}
+														else {twolines("œ–Œ√–¿ÃÃ¿","¬ À");}
 														placedchar(0,46,1);
 														placedchar(48+GlobalMin/10,50,1);
 														scr_time(GlobalHr,GlobalMin,1,35,state/0x10);
 													}
-													else {twolines("œ–Œ√–¿ÃÃ¿","¬€ À");}
+													else {
+														if (EngLang) {twolines("PROGRAM","OFF");}
+														else {twolines("œ–Œ√–¿ÃÃ¿","¬€ À");}
+													}
 											}
 											else
 											{
-													twolines("”—“¿ÕŒ¬»“≈","œ¿–¿Ã≈“–€");
+													if (EngLang) {twolines("PLEASE SET","PARAMETERS");}
+													else {twolines("”—“¿ÕŒ¬»“≈","œ¿–¿Ã≈“–€");}
 													MBpower_not=10;
 													power_not=1;
 													
@@ -2464,8 +2502,15 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
 										}
 										if (ts_change)
 										{
-												if (power) {twolines("œ–Œ√–¿ÃÃ¿","¬€ À");}
-												else {placedchar(0x01,56,0);twolines("œ–Œ√–¿ÃÃ¿","Œ¡–¿¡Œ“ ¿");}
+												if (power) {
+													if (EngLang) {twolines("PROGRAM","OFF");}
+													else {twolines("œ–Œ√–¿ÃÃ¿","¬€ À");}
+												}
+												else {
+													placedchar(0x01,56,0);
+													if (EngLang) {twolines("APPLYING","SETTINGS");}
+													else {twolines("œ–Œ√–¿ÃÃ¿","Œ¡–¿¡Œ“ ¿");}
+												}
 										}
     		      			break;
     		      		}
@@ -2478,20 +2523,24 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
     		      		case 0x02:
     		      		{
     		      			if (sc_up)
-    		      		    {
-    		      				twolines("”—“¿ÕŒ¬ ¿","¬–≈Ãﬂ");
-    		      				sc_up=0;
-    		      				scr_time(GlobalHr,GlobalMin,1,35,state/0x10);
-    		      		    }
+    		      		  {
+											screen_init();
+												if (EngLang) {twolines("SETTINGS","TIME");}
+												else {twolines("”—“¿ÕŒ¬ ¿","¬–≈Ãﬂ");}
+												sc_up=0;
+												scr_time(GlobalHr,GlobalMin,1,35,state/0x10);
+    		      		   }
     		      			break;
     		      		}
     		      		case 0x12:
     		      		{
     		      			if (sc_up)
-    		      		    {
-    		      				twolines("”—“¿ÕŒ¬ ¿","¬–≈Ãﬂ");
-    		      				sc_up=0;
-    		      		    }
+    		      		  {
+											
+											if (EngLang) {twolines("SETTINGS","TIME");}
+											else {twolines("”—“¿ÕŒ¬ ¿","¬–≈Ãﬂ");}
+											sc_up=0;
+    		      		  }
     		      			TIME_CH=1;
 										if((but_p||but_minus||but_plus)&&two_sec){scr_time(GlobalHr,GlobalMin,1,35,0);}
 										Tick1=HAL_GetTick();
@@ -2519,10 +2568,11 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
     		      		case 0x22:
     		      		{
     		      			if (sc_up)
-    		      		    {
-    		      				twolines("”—“¿ÕŒ¬ ¿","¬–≈Ãﬂ");
+    		      		  {
+    		      				if (EngLang) {twolines("SETTINGS","TIME");}
+											else {twolines("”—“¿ÕŒ¬ ¿","¬–≈Ãﬂ");}
     		      				sc_up=0;
-    		      		    }
+    		      		  }
     		      			TIME_CH=1;
 										if((but_p||but_minus||but_plus)&&two_sec){scr_time(GlobalHr,GlobalMin,1,35,0);}
 										
@@ -2551,20 +2601,22 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
     		      		case 0x03:
     		      		{
     		      			if (sc_up)
-    		      		    {
-    		      				twolines("”—“¿ÕŒ¬ ¿","—“¿–“");
+    		      		  {
+    		      				if (EngLang) {twolines("SETTINGS","START");}
+											else {twolines("”—“¿ÕŒ¬ ¿","—“¿–“");}
     		      				sc_up=0;
-        		      			scr_time(StartHr,StartMin,1,35,state/0x10);
-    		      		    }
+        		      		scr_time(StartHr,StartMin,1,35,state/0x10);
+    		      		  }
     		      			break;
     		      		}
     		      		case 0x13:
     		      		{
     		      			if (sc_up)
-    		      		    {
-    		      				twolines("”—“¿ÕŒ¬ ¿","—“¿–“");
+    		      		  {
+    		      				if (EngLang) {twolines("SETTINGS","START");}
+											else {twolines("”—“¿ÕŒ¬ ¿","—“¿–“");}
     		      				sc_up=0;
-    		      		    }
+    		      		  }
 										if((but_p||but_minus||but_plus)&&two_sec){scr_time(StartHr,StartMin,1,35,0);}
 										Tick1=HAL_GetTick();
 										if((Tick1-Tick2)>250)
@@ -2591,10 +2643,11 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
     		      		case 0x23:
     		      		{
     		      			if (sc_up)
-    		      		    {
-    		      				twolines("”—“¿ÕŒ¬ ¿","—“¿–“");
+    		      		  {
+    		      				if (EngLang) {twolines("SETTINGS","START");}
+											else {twolines("”—“¿ÕŒ¬ ¿","—“¿–“");}
     		      				sc_up=0;
-    		      		    }
+    		      		  }
 										if((but_p||but_minus||but_plus)&&two_sec){scr_time(StartHr,StartMin,1,35,0);}	
 										Tick1=HAL_GetTick();
 										if((Tick1-Tick2)>250)
@@ -2621,20 +2674,22 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
     		      		case 0x04:
     		      		{
     		      			if (sc_up)
-    		      		    {
-    		      				twolines("”—“¿ÕŒ¬ ¿","—“Œœ");
+    		      		  {
+    		      				if (EngLang) {twolines("SETTINGS","STOP");}
+											else {twolines("”—“¿ÕŒ¬ ¿","—“Œœ");}
     		      				sc_up=0;
         		      			scr_time(StopHr,StopMin,1,35,state/0x10);
-    		      		    }
+    		      		  }
     		      			break;
     		      		}
     		      		case 0x14:
     		      		{
     		      			if (sc_up)
-    		      		    {
-    		      				twolines("”—“¿ÕŒ¬ ¿","—“Œœ");
+    		      		  {
+    		      				if (EngLang) {twolines("SETTINGS","STOP");}
+											else {twolines("”—“¿ÕŒ¬ ¿","—“Œœ");}
     		      				sc_up=0;
-    		      		    }
+    		      		  }
 										if((but_p||but_minus||but_plus)&&two_sec){scr_time(StopHr,StopMin,1,35,0);}
 										Tick1=HAL_GetTick();
 										if((Tick1-Tick2)>250)
@@ -2662,10 +2717,11 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
     		      		case 0x24:
     		      		{
     		      			if (sc_up)
-    		      		    {
-    		      				twolines("”—“¿ÕŒ¬ ¿","—“Œœ");
+    		      		  {
+    		      				if (EngLang) {twolines("SETTINGS","STOP");}
+											else {twolines("”—“¿ÕŒ¬ ¿","—“Œœ");}
     		      				sc_up=0;
-    		      		    }
+    		      		  }
 										if((but_p||but_minus||but_plus)&&two_sec){scr_time(StopHr,StopMin,1,35,0);}	
 										Tick1=HAL_GetTick();
 										if((Tick1-Tick2)>250)
@@ -2693,20 +2749,22 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
     		      		case 0x05:
     		      		{
     		      			if (sc_up)
-    		      		    {
-    		      				twolines(" Œ–ÃÀ≈Õ»…","¬—≈√Œ");
+    		      		  {
+											if (EngLang) {twolines("FEEDINGS","COUNT");}
+    		      				else {twolines(" Œ–ÃÀ≈Õ»…","¬—≈√Œ");}
     		      				sc_up=0;
         		      			scr_cnt(CntFood,1,42,state/0x10);
-    		      		    }
+    		      		  }
     		      			break;
     		      		}
     		      		case 0x15:
     		      		{
     		      			if (sc_up)
-    		      		    {
-    		      				twolines(" Œ–ÃÀ≈Õ»…","¬—≈√Œ");
+    		      		  {
+    		      				if (EngLang) {twolines("FEEDINGS","COUNT");}
+    		      				else {twolines(" Œ–ÃÀ≈Õ»…","¬—≈√Œ");}
     		      				sc_up=0;
-    		      		    }
+    		      		  }
 										if((but_p||but_minus||but_plus)&&two_sec){scr_cnt(CntFood,1,42,0);}
 										Tick1=HAL_GetTick();
 										if((Tick1-Tick2)>250)
@@ -2735,7 +2793,8 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
     		      		{
     		      			if (sc_up)
 										{
-											twolines("Õ≈œ–≈–€¬ÕŒ","");
+											if (EngLang) {twolines("RUNNING","");}
+											else {twolines("Õ≈œ–≈–€¬ÕŒ","");}
 											rele|=0x20;
 											SPI_syn_out(rele);
 
@@ -2783,20 +2842,22 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
     		      		case 0x06:
     		      		{
     		      			if (sc_up)
-    		      		    {
-    		      				twolines("—”“Œ◊Õ€…","–Œ—“ Õ¿");
+    		      		  {
+											if (EngLang) {twolines("DAILY INC","OF");}
+    		      				else {twolines("—”“Œ◊Õ€…","–Œ—“ Õ¿");}
     		      				sc_up=0;
     		      				dot_per(Per/10,Per%10,1,42,state/0x10);
-    		      		    }
+    		      		  }
     		      			break;
     		      		}
     		      		case 0x16:
     		      		{
     		      			if (sc_up)
-    		      		    {
-    		      				twolines("—”“Œ◊Õ€…","–Œ—“ Õ¿");
+    		      		  {
+    		      				if (EngLang) {twolines("DAILY INC","OF");}
+    		      				else {twolines("—”“Œ◊Õ€…","–Œ—“ Õ¿");}
     		      				sc_up=0;
-    		      		    }
+    		      		  }
 										if((but_p||but_minus||but_plus)&&two_sec){dot_per(Per/10,Per%10,1,42,0);}
 										Tick1=HAL_GetTick();
 										if((Tick1-Tick2)>250)
@@ -2822,11 +2883,12 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
     		      		}
     		      		case 0x26:
     		      		{
-    		      		    if (sc_up)
-    		      		    {
-    		      		    	twolines("—”“Œ◊Õ€…","–Œ—“ Õ¿");
+    		      		  if (sc_up)
+    		      		  {
+    		      		    	if (EngLang) {twolines("DAILY INC","OF");}
+												else {twolines("—”“Œ◊Õ€…","–Œ—“ Õ¿");}
     		      		    	sc_up=0;
-    		      		    }
+    		      		  }
 										if((but_p||but_minus||but_plus)&&two_sec){dot_per(Per/10,Per%10,1,42,0);}
 										Tick1=HAL_GetTick();
 										if((Tick1-Tick2)>250)
@@ -2853,21 +2915,23 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
     		      		case 0x07:
     		      		{
     		      			if (sc_up)
-    		      		    {
+    		      		  {
 											rele&=0xDF;
 											SPI_syn_out(rele);
-    		      				twolines(" Œ–Ã Œ¡Ÿ≈≈","¬–");
+											if (EngLang) {twolines("TOTAL FEED","TIM");}
+    		      				else{twolines(" Œ–Ã Œ¡Ÿ≈≈","¬–");}
 											scr_time_hours(CntHr,CntMin,CntSec,1,20,state/0x10);
     		      				//scr_time(CntMin,CntSec,1,20,state/0x10);
     		      				sc_up=0;
-    		      		    }
+    		      		  }
     		      			break;
     		      		}
     		      		case 0x17:
     		      		{
     		      			if (sc_up)
     		      		  {
-    		      				twolines(" Œ–Ã Œ¡Ÿ≈≈","¬–");
+    		      				if (EngLang) {twolines("TOTAL FEED","TIM");}
+    		      				else{twolines(" Œ–Ã Œ¡Ÿ≈≈","¬–");}
     		      				sc_up=0;
     		      		  }
 										if((but_p||but_minus||but_plus)&&two_sec){scr_time_hours(CntHr,CntMin,CntSec,1,20,0);}
@@ -2896,10 +2960,11 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
     		      		case 0x27:
     		      		{
     		      			if (sc_up)
-    		      		    {
-    		      				twolines(" Œ–Ã Œ¡Ÿ≈≈","¬–");
+    		      		  {
+    		      				if (EngLang) {twolines("TOTAL FEED","TIM");}
+    		      				else{twolines(" Œ–Ã Œ¡Ÿ≈≈","¬–");}
     		      				sc_up=0;
-    		      		    }
+    		      		  }
 										if((but_p||but_minus||but_plus)  &&two_sec){scr_time_hours(CntHr,CntMin,CntSec,1,20,0);}
 										Tick1=HAL_GetTick();
 										if((Tick1-Tick2)>250)
@@ -2926,10 +2991,11 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
 									case 0x28:
     		      		{
     		      			if (sc_up)
-    		      		    {
-    		      				twolines(" Œ–Ã Œ¡Ÿ≈≈","¬–");
+    		      		  {
+    		      				if (EngLang) {twolines("TOTAL FEED","TIM");}
+    		      				else{twolines(" Œ–Ã Œ¡Ÿ≈≈","¬–");}
     		      				sc_up=0;
-    		      		    }
+    		      		  }
 										if((but_p||but_minus||but_plus)  &&two_sec){scr_time_hours(CntHr,CntMin,CntSec,1,20,0);}
 										Tick1=HAL_GetTick();
 										if((Tick1-Tick2)>250)
@@ -2956,10 +3022,11 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
     		      		case 0x08:
     		      		{
     		      			if (sc_up)
-    		      		    {
-    		      				twolines("¬ À “≈—“","");
+    		      		  {
+    		      				if (EngLang) {twolines("TEST ON","");}
+    		      				else{twolines("¬ À “≈—“","");}
     		      				sc_up=0;
-    		      		    }
+    		      		  }
     		      			MOTOR_TIME1=MOTOR_TIME+1;
     		      			break;
     		      		}
@@ -2967,7 +3034,8 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
     		      		{
     		      			if (sc_up||blink)
     		      		  {
-    		      				twolines("¬ À “≈—“","");
+											if (EngLang) {twolines("TEST ON","");}
+    		      				else{twolines("¬ À “≈—“","");}
     		      				sc_up=0;
     		      				blink=0;
     		      				rele|=0x20;
@@ -3005,7 +3073,7 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
     		      				sc_up=0;
     		      				clearscreen(0);
 
-											twolines("AVTOKOR","FEEDHv1.0L");
+											twolines("AVTOKOR","FEEDHv1.1L");
 											placedchar(46,46,0);
 											placedchar(77,42,0);
 											placedchar(82,50,0);
@@ -3021,8 +3089,8 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
     		      			{
     		      				sc_up=0;
     		      				clearscreen(0);
-
-											twolines("œ¿–¿Ã≈“–€","MODBUS");
+											if (EngLang) {twolines("MODBUS","SETTINGS");}
+    		      				else {twolines("œ¿–¿Ã≈“–€","MODBUS");}
     		      			}
     		      			break;
     		      		}
@@ -3032,19 +3100,36 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
     		      			{
     		      				sc_up=0;
     		      				clearscreen(0);
-											oneline(0,"‡‰ÂÒ");
-											switch(MBSpeed)
-											{
-												case 0: {oneline(1,"ÒÍ   2400");break;}
-												case 1: {oneline(1,"ÒÍ   4800");break;}
-												case 2: {oneline(1,"ÒÍ   9600");break;}
-												case 3: {oneline(1,"ÒÍ  14400");break;}
-												case 4: {oneline(1,"ÒÍ  19200");break;}
-												case 5: {oneline(1,"ÒÍ  38400");break;}
-												case 6: {oneline(1,"ÒÍ  56000");break;}
-												case 7: {oneline(1,"ÒÍ  57600");break;}
-												case 8: {oneline(1,"ÒÍ 115200");break;}
-												default: {oneline(1,"ÒÍo115200");break;}
+											if (EngLang) {
+												oneline(0,"adr");
+												switch(MBSpeed)
+												{
+													case 0: {oneline(1,"spd   2400");break;}
+													case 1: {oneline(1,"spd   4800");break;}
+													case 2: {oneline(1,"spd   9600");break;}
+													case 3: {oneline(1,"spd  14400");break;}
+													case 4: {oneline(1,"spd  19200");break;}
+													case 5: {oneline(1,"spd  38400");break;}
+													case 6: {oneline(1,"spd  56000");break;}
+													case 7: {oneline(1,"spd  57600");break;}
+													case 8: {oneline(1,"spd 115200");break;}
+													default: {oneline(1,"ÒÍo115200");break;}
+												}
+											} else {
+												oneline(0,"‡‰ÂÒ");
+												switch(MBSpeed)
+												{
+													case 0: {oneline(1,"ÒÍ   2400");break;}
+													case 1: {oneline(1,"ÒÍ   4800");break;}
+													case 2: {oneline(1,"ÒÍ   9600");break;}
+													case 3: {oneline(1,"ÒÍ  14400");break;}
+													case 4: {oneline(1,"ÒÍ  19200");break;}
+													case 5: {oneline(1,"ÒÍ  38400");break;}
+													case 6: {oneline(1,"ÒÍ  56000");break;}
+													case 7: {oneline(1,"ÒÍ  57600");break;}
+													case 8: {oneline(1,"ÒÍ 115200");break;}
+													default: {oneline(1,"ÒÍo115200");break;}
+												}
 											}
 										}
 										Tick1=HAL_GetTick();
@@ -3076,20 +3161,40 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
 											NeedChangeSpeed=1;
     		      				sc_up=0;
     		      				clearscreen(0);
-											oneline(0,"‡‰ÂÒ");
-											scr_cnt(MBAdr,0,36,0);
-											switch(MBSpeed)
-											{
-												case 0: {oneline(1,"ÒÍ   2400");break;}
-												case 1: {oneline(1,"ÒÍ   4800");break;}
-												case 2: {oneline(1,"ÒÍ   9600");break;}
-												case 3: {oneline(1,"ÒÍ  14400");break;}
-												case 4: {oneline(1,"ÒÍ  19200");break;}
-												case 5: {oneline(1,"ÒÍ  38400");break;}
-												case 6: {oneline(1,"ÒÍ  56000");break;}
-												case 7: {oneline(1,"ÒÍ  57600");break;}
-												case 8: {oneline(1,"ÒÍ 115200");break;}
+											
+											if (EngLang) {
+												oneline(0,"adr");
+												switch(MBSpeed)
+												{
+													case 0: {oneline(1,"spd   2400");break;}
+													case 1: {oneline(1,"spd   4800");break;}
+													case 2: {oneline(1,"spd   9600");break;}
+													case 3: {oneline(1,"spd  14400");break;}
+													case 4: {oneline(1,"spd  19200");break;}
+													case 5: {oneline(1,"spd  38400");break;}
+													case 6: {oneline(1,"spd  56000");break;}
+													case 7: {oneline(1,"spd  57600");break;}
+													case 8: {oneline(1,"spd 115200");break;}
+													default: {oneline(1,"ÒÍo115200");break;}
+												}
+											} else {
+												oneline(0,"‡‰ÂÒ");
+												switch(MBSpeed)
+												{
+													case 0: {oneline(1,"ÒÍ   2400");break;}
+													case 1: {oneline(1,"ÒÍ   4800");break;}
+													case 2: {oneline(1,"ÒÍ   9600");break;}
+													case 3: {oneline(1,"ÒÍ  14400");break;}
+													case 4: {oneline(1,"ÒÍ  19200");break;}
+													case 5: {oneline(1,"ÒÍ  38400");break;}
+													case 6: {oneline(1,"ÒÍ  56000");break;}
+													case 7: {oneline(1,"ÒÍ  57600");break;}
+													case 8: {oneline(1,"ÒÍ 115200");break;}
+													default: {oneline(1,"ÒÍo115200");break;}
+												}
 											}
+											scr_cnt(MBAdr,0,36,0);
+
 										}
 										Tick1=HAL_GetTick();
 										if((Tick1-Tick2)>250)
@@ -3103,27 +3208,86 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
 											if(blon)
 											{
 												blon=0;
-												oneline(1,"ÒÍ       ");
+												if (EngLang) {twolines("MODBUS","SETTINGS");}
+												else {oneline(1,"spd       ");}
 											}
 											else
 											{
 												blon=1;
-												switch(MBSpeed)
-												{
-													case 0: {oneline(1,"ÒÍ   2400");break;}
-													case 1: {oneline(1,"ÒÍ   4800");break;}
-													case 2: {oneline(1,"ÒÍ   9600");break;}
-													case 3: {oneline(1,"ÒÍ  14400");break;}
-													case 4: {oneline(1,"ÒÍ  19200");break;}
-													case 5: {oneline(1,"ÒÍ  38400");break;}
-													case 6: {oneline(1,"ÒÍ  56000");break;}
-													case 7: {oneline(1,"ÒÍ  57600");break;}
-													case 8: {oneline(1,"ÒÍ 115200");break;}
+												if (EngLang) {
+													switch(MBSpeed)
+													{
+														case 0: {oneline(1,"spd   2400");break;}
+														case 1: {oneline(1,"spd   4800");break;}
+														case 2: {oneline(1,"spd   9600");break;}
+														case 3: {oneline(1,"spd  14400");break;}
+														case 4: {oneline(1,"spd  19200");break;}
+														case 5: {oneline(1,"spd  38400");break;}
+														case 6: {oneline(1,"spd  56000");break;}
+														case 7: {oneline(1,"spd  57600");break;}
+														case 8: {oneline(1,"spd 115200");break;}
+														default: {oneline(1,"ÒÍo115200");break;}
+													}
+												} else {
+													switch(MBSpeed)
+													{
+														case 0: {oneline(1,"ÒÍ   2400");break;}
+														case 1: {oneline(1,"ÒÍ   4800");break;}
+														case 2: {oneline(1,"ÒÍ   9600");break;}
+														case 3: {oneline(1,"ÒÍ  14400");break;}
+														case 4: {oneline(1,"ÒÍ  19200");break;}
+														case 5: {oneline(1,"ÒÍ  38400");break;}
+														case 6: {oneline(1,"ÒÍ  56000");break;}
+														case 7: {oneline(1,"ÒÍ  57600");break;}
+														case 8: {oneline(1,"ÒÍ 115200");break;}
+														default: {oneline(1,"ÒÍo115200");break;}
+													}
 												}
 											}
     		      			}
     		      			break;
     		      		}
+									case 0x0B:
+									{
+										if (sc_up)
+    		      			{
+    		      				sc_up=0;
+    		      				clearscreen(0);
+											twolines("ﬂ«€ ","LANGUAGE");
+    		      			}
+										break;
+									}
+									case 0x1B:
+									{
+										if (sc_up)
+    		      			{
+    		      				sc_up=0;
+    		      				clearscreen(0);
+											twolines("ﬂ«€  LANG","");
+    		      			}
+										Tick1=HAL_GetTick();
+										if((Tick1-Tick2)>250)
+										{
+											blink=1;
+											Tick2=Tick1;
+										}
+										if(blink)
+										{
+											blink=0;
+											if(blon)
+											{
+												blon=0;
+												if(EngLang) {oneline(1,"ENGLISH");}
+												else {oneline(1,"–”—— »…");}
+											}
+											else
+											{
+												blon=1;
+												oneline(1,"");
+											}
+										}
+										break;
+									}
     		      	}
     		  	  	if(wait)
     		  	  	{
@@ -3184,6 +3348,11 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
     		  	  			RTC_DateTime.Minutes = GlobalMin;
     		  	  			RTC_DateTime.Seconds = 00;
     		  	  			HAL_RTC_SetTime(&hrtc, &RTC_DateTime, RTC_FORMAT_BIN);
+										
+										HAL_RTC_GetDate(&hrtc, &RTC_Date1, RTC_FORMAT_BIN);
+										HAL_RTC_GetTime(&hrtc, &RTC_DateTime, RTC_FORMAT_BIN);
+										GlobalHr=RTC_DateTime.Hours;
+										GlobalMin=RTC_DateTime.Minutes;
     		  	  		}
     		  	  		if (VAR_CH)
     		  	  		{
