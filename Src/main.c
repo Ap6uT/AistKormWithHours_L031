@@ -496,8 +496,9 @@ const unsigned char auchCRCLo[] =
 uint16_t reg_MB2[2][19];
 uint16_t reg_MB[30];
 
-const uint32_t USART_const [9] = {2400,4800,9600,14400,19200,38400,56000,57600,115200};
-const uint8_t  TIMER_const [9] = {15,8,4,3,2,2,2,2,2};
+const uint32_t USART_const [9] = {9600,4800,9600,14400,19200,38400,56000,57600,115200};
+//const uint8_t  TIMER_const [9] = {4,8,4,3,2,2,2,2,2};
+const uint8_t  TIMER_const [9] = {37,73,37,25,19,10,7,7,4};
 
 uint16_t CRCCod;
 
@@ -681,9 +682,9 @@ static void MX_TIM22_Init(uint8_t bd)
 {
 	__HAL_RCC_TIM22_CLK_ENABLE();
   htim22.Instance = TIM22;
-  htim22.Init.Prescaler = 8000;
+  htim22.Init.Prescaler = 800-1;
   htim22.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim22.Init.Period = 2;
+  htim22.Init.Period = TIMER_const[bd]; 
   htim22.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   if (HAL_TIM_Base_Init(&htim22) != HAL_OK)
   {
@@ -691,7 +692,7 @@ static void MX_TIM22_Init(uint8_t bd)
   }
 	
 	
-	TIM22->PSC = 8000 - 1; 
+	TIM22->PSC = 800 - 1; 
 	TIM22->ARR = TIMER_const[bd]; 
 	TIM22->DIER |= TIM_DIER_UIE; 
 	TIM22->CR1 |= TIM_CR1_OPM;
@@ -4006,32 +4007,17 @@ scr_cnt (res_wr_index, 0, 0, 0);
 void USART2_IRQHandler(void)
 {
 	if((USART2->ISR & USART_ISR_RXNE) == USART_ISR_RXNE)
-	{			
-		TIM22->CR1 &= (uint16_t)(~((uint16_t)TIM_CR1_CEN));
-		TIM22->CNT=0;
-		uint8_t buf = 0;
-		buf =(uint8_t)(USART2->RDR);
-		if(res_wr_index==0)
-		{
-			if (buf==MBAdr)
-			{
-				res_buffer[res_wr_index]=buf;
-				res_wr_index++;	
-			}
-		}
-		else
-		{
-			res_buffer[res_wr_index]=(uint8_t)(USART2->RDR);
-			//HAL_UART_Receive(&huart2, &x, 1, 100);
-			if(res_wr_index<19)
-			{
-				res_wr_index++;						
-			}	
-		}
-		TIM22->CR1 |= TIM_CR1_CEN; 
-	
+	{	
+		
+        TIM22->CR1 &= (uint16_t)(~((uint16_t)TIM_CR1_CEN));
+        TIM22->CNT=0;
+        res_buffer[res_wr_index]=(uint8_t)(USART2->RDR);
+        if(res_wr_index<19)
+        {
+            res_wr_index++;			
+        }
+        TIM22->CR1 |= TIM_CR1_CEN; 
 	}
-	//else if (LL_USART_IsActiveFlag_RTO(USART2))
 	HAL_UART_IRQHandler(&huart2);
 }
 
