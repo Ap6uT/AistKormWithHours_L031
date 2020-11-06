@@ -556,6 +556,8 @@ uint8_t but_p,but_plus,but_minus,reset_t,double_but = 0;
 uint8_t wait = 0;
 volatile uint8_t sc_up = 1;
 //volatile uint16_t m_timer = 0;
+
+volatile uint8_t prev_min_for_screen = 61;
 volatile uint8_t prev_min = 61;
 volatile uint8_t prev_sec = 61;
 //volatile uint8_t GlobalSec;
@@ -1808,6 +1810,10 @@ HAL_NVIC_EnableIRQ(RTC_IRQn);
 				HAL_RTC_GetTime(&hrtc, &RTC_DateTime, RTC_FORMAT_BIN);
     		GlobalHr=RTC_DateTime.Hours;
     		GlobalMin=RTC_DateTime.Minutes;
+				if (prev_min_for_screen != GlobalMin) {
+					screen_init();
+					prev_min_for_screen = GlobalMin;
+				}
     		//GlobalSec=RTC_DateTime.Seconds;
     	}
 
